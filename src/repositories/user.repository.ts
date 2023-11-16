@@ -17,6 +17,7 @@ export class UserRepository extends DefaultCrudRepository<
     Todo,
     typeof User.prototype.id
   >;
+
   constructor(
     @inject('datasources.db') dataSource: DbDataSource,
     @repository.getter('TodoRepository')
