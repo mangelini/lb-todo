@@ -1,37 +1,57 @@
 import {
-  Count,
-  CountSchema,
-  Filter,
-  FilterExcludingWhere,
-  repository,
-  Where,
-} from '@loopback/repository';
+  TokenService,
+  UserService,
+  authenticate,
+} from '@loopback/authentication';
+import {inject} from '@loopback/core';
+import {repository} from '@loopback/repository';
 import {
+  SchemaObject,
   del,
-  get,
   getModelSchemaRef,
   param,
   patch,
   post,
-  put,
   requestBody,
   response,
 } from '@loopback/rest';
+import {
+  Credentials,
+  TokenServiceBindings,
+  UserServiceBindings,
+} from '../components/jwt-authentication';
 import {User} from '../models';
 import {UserRepository} from '../repositories';
 
+const CredentialsSchema: SchemaObject = {
+  type: 'object',
+  required: ['username', 'password'],
+  properties: {
+    username: {
+      type: 'string',
+    },
+    password: {
+      type: 'string',
+    },
+  },
+};
+
 export class UserController {
   constructor(
+    @inject(TokenServiceBindings.TOKEN_SERVICE)
+    public jwtService: TokenService,
+    @inject(UserServiceBindings.USER_SERVICE)
+    public userService: UserService<User, Credentials>,
     @repository(UserRepository)
     public userRepository: UserRepository,
   ) {}
 
-  @post('/users')
+  @post('/users/register')
   @response(200, {
-    description: 'User model instance',
+    description: 'Register user',
     content: {'application/json': {schema: getModelSchemaRef(User)}},
   })
-  async create(
+  async register(
     @requestBody({
       content: {
         'application/json': {
@@ -47,70 +67,38 @@ export class UserController {
     return this.userRepository.create(user);
   }
 
-  @get('/users/count')
+  @post('users/login')
   @response(200, {
-    description: 'User model count',
-    content: {'application/json': {schema: CountSchema}},
+    description: 'JWT Token',
+    content: {'application/json': {schema: getModelSchemaRef(User)}},
   })
-  async count(@param.where(User) where?: Where<User>): Promise<Count> {
-    return this.userRepository.count(where);
-  }
-
-  @get('/users')
-  @response(200, {
-    description: 'Array of User model instances',
-    content: {
-      'application/json': {
-        schema: {
-          type: 'array',
-          items: getModelSchemaRef(User, {includeRelations: true}),
-        },
-      },
-    },
-  })
-  async find(@param.filter(User) filter?: Filter<User>): Promise<User[]> {
-    return this.userRepository.find(filter);
-  }
-
-  @patch('/users')
-  @response(200, {
-    description: 'User PATCH success count',
-    content: {'application/json': {schema: CountSchema}},
-  })
-  async updateAll(
+  async login(
     @requestBody({
+      description: 'The input of login function',
+      required: true,
       content: {
-        'application/json': {
-          schema: getModelSchemaRef(User, {partial: true}),
-        },
+        'application/json': {schema: CredentialsSchema},
       },
     })
-    user: User,
-    @param.where(User) where?: Where<User>,
-  ): Promise<Count> {
-    return this.userRepository.updateAll(user, where);
-  }
+    credentials: Credentials,
+  ): Promise<{token: string}> {
+    // ensure the user exists, and the password is correct
+    const user = await this.userService.verifyCredentials(credentials);
 
-  @get('/users/{id}')
-  @response(200, {
-    description: 'User model instance',
-    content: {
-      'application/json': {
-        schema: getModelSchemaRef(User, {includeRelations: true}),
-      },
-    },
-  })
-  async findById(
-    @param.path.number('id') id: number,
-    @param.filter(User, {exclude: 'where'}) filter?: FilterExcludingWhere<User>,
-  ): Promise<User> {
-    return this.userRepository.findById(id, filter);
+    // convert a User object into a UserProfile object (reduced set of properties)
+    const userProfile = this.userService.convertToUserProfile(user);
+
+    // create a JSON Web Token based on the user profile
+    const token = await this.jwtService.generateToken(userProfile);
+
+    return {token};
   }
 
   @patch('/users/{id}')
   @response(204, {
-    description: 'User PATCH success',
+    description: 'Update user',
   })
+  @authenticate('jwt')
   async updateById(
     @param.path.number('id') id: number,
     @requestBody({
@@ -125,22 +113,28 @@ export class UserController {
     await this.userRepository.updateById(id, user);
   }
 
-  @put('/users/{id}')
-  @response(204, {
-    description: 'User PUT success',
-  })
-  async replaceById(
-    @param.path.number('id') id: number,
-    @requestBody() user: User,
-  ): Promise<void> {
-    await this.userRepository.replaceById(id, user);
-  }
-
   @del('/users/{id}')
   @response(204, {
     description: 'User DELETE success',
   })
+  @authenticate('jwt')
   async deleteById(@param.path.number('id') id: number): Promise<void> {
     await this.userRepository.deleteById(id);
   }
+
+  // @get('/users/{id}')
+  // @response(200, {
+  //   description: 'User model instance',
+  //   content: {
+  //     'application/json': {
+  //       schema: getModelSchemaRef(User, {includeRelations: true}),
+  //     },
+  //   },
+  // })
+  // async findById(
+  //   @param.path.number('id') id: number,
+  //   @param.filter(User, {exclude: 'where'}) filter?: FilterExcludingWhere<User>,
+  // ): Promise<User> {
+  //   return this.userRepository.findById(id, filter);
+  // }
 }

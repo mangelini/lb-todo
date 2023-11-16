@@ -1,3 +1,4 @@
+import {authenticate} from '@loopback/authentication';
 import {
   Count,
   CountSchema,
@@ -20,13 +21,13 @@ import {
 import {Todo} from '../models';
 import {TodoRepository} from '../repositories';
 
+@authenticate('jwt')
 export class TodoController {
   constructor(
     @repository(TodoRepository)
     public todoRepository: TodoRepository,
   ) {}
 
-  // TODO omit isCompleted
   @post('/todos')
   @response(200, {
     description: 'Todo model instance',
@@ -38,12 +39,12 @@ export class TodoController {
         'application/json': {
           schema: getModelSchemaRef(Todo, {
             title: 'NewTodo',
-            exclude: ['id'],
+            exclude: ['id', 'isCompleted'],
           }),
         },
       },
     })
-    todo: Omit<Todo, 'id'>,
+    todo: Omit<Todo, 'id' | 'isCompleted'>,
   ): Promise<Todo> {
     return this.todoRepository.create(todo);
   }

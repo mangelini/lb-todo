@@ -2,7 +2,6 @@ import {UserService} from '@loopback/authentication';
 import {repository} from '@loopback/repository';
 import {HttpErrors} from '@loopback/rest';
 import {securityId, UserProfile} from '@loopback/security';
-import {compare} from 'bcryptjs';
 import {User} from '../../../models/user.model';
 import {UserRepository} from '../../../repositories/user.repository';
 
@@ -29,12 +28,8 @@ export class MyUserService implements UserService<User, Credentials> {
     if (!foundUser) {
       throw new HttpErrors.Unauthorized(invalidCredentialsError);
     }
-    const passwordMatched = await compare(
-      credentials.password,
-      foundUser.password,
-    );
 
-    if (!passwordMatched) {
+    if (foundUser.password !== credentials.password) {
       throw new HttpErrors.Unauthorized(invalidCredentialsError);
     }
 
