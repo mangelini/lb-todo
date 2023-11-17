@@ -3,6 +3,7 @@ import {
   UserService,
   authenticate,
 } from '@loopback/authentication';
+import {authorize} from '@loopback/authorization';
 import {inject} from '@loopback/core';
 import {FilterExcludingWhere, repository} from '@loopback/repository';
 import {
@@ -137,5 +138,25 @@ export class UserController {
     @param.filter(User, {exclude: 'where'}) filter?: FilterExcludingWhere<User>,
   ): Promise<User> {
     return this.userRepository.findById(id, filter);
+  }
+
+  @get('/users')
+  @response(200, {
+    description: 'Array of Users',
+    content: {
+      'application/json': {
+        schema: {
+          type: 'array',
+          items: getModelSchemaRef(User, {includeRelations: true}),
+        },
+      },
+    },
+  })
+  @authenticate('jwt')
+  @authorize({
+    allowedRoles: ['admin'],
+  })
+  async getAll(): Promise<User[]> {
+    return this.userRepository.find();
   }
 }

@@ -5,10 +5,6 @@ import {securityId, UserProfile} from '@loopback/security';
 import {User} from '../../../models/user.model';
 import {UserRepository} from '../../../repositories/user.repository';
 
-/**
- * A pre-defined type for user credentials. It assumes a user logs in
- * using the email and password. You can modify it if your app has different credential fields
- */
 export type Credentials = {
   username: string;
   password: string;
@@ -41,6 +37,7 @@ export class MyUserService implements UserService<User, Credentials> {
       [securityId]: user.id.toString(),
       name: user.username,
       id: user.id,
+      role: user.role,
     };
   }
 }

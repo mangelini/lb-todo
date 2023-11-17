@@ -10,6 +10,7 @@ import {
 } from '@loopback/rest-explorer';
 import {ServiceMixin} from '@loopback/service-proxy';
 import path from 'path';
+import {RoleBasedAuthorizer} from './authorization/role.authorizer';
 import {
   JWTAuthenticationComponent,
   SECURITY_SCHEME_SPEC,
@@ -23,6 +24,10 @@ export class LbTodoApplication extends BootMixin(
 ) {
   constructor(options: ApplicationConfig = {}) {
     super(options);
+
+    this.bind(
+      'authorizationProviders.role-based-authorizer-provider',
+    ).toProvider(RoleBasedAuthorizer);
 
     // Set up the custom sequence
     this.sequence(MySequence);

@@ -22,6 +22,15 @@ export class User extends Entity {
   })
   password: string;
 
+  @property({
+    type: 'string',
+    required: true,
+    jsonSchema: {
+      enum: ['normal', 'admin'],
+    },
+  })
+  role: string;
+
   @hasMany(() => Todo)
   todos: Todo[];
 

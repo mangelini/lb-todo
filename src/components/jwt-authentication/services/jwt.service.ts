@@ -1,8 +1,10 @@
 import {TokenService} from '@loopback/authentication';
 import {inject} from '@loopback/core';
+import {repository} from '@loopback/repository';
 import {HttpErrors} from '@loopback/rest';
 import {securityId, UserProfile} from '@loopback/security';
 import {promisify} from 'util';
+import {UserRepository} from '../../../repositories';
 import {TokenServiceBindings} from '../keys';
 
 const jwt = require('jsonwebtoken');
@@ -15,6 +17,7 @@ export class JWTService implements TokenService {
     private jwtSecret: string,
     @inject(TokenServiceBindings.TOKEN_EXPIRES_IN)
     private jwtExpiresIn: string,
+    @repository(UserRepository) public userRepository: UserRepository,
   ) {}
 
   async verifyToken(token: string): Promise<UserProfile> {
@@ -29,6 +32,11 @@ export class JWTService implements TokenService {
     try {
       // decode user profile from token
       const decodedToken = await verifyAsync(token, this.jwtSecret);
+      const user = await this.userRepository.findById(decodedToken.id);
+      if (!user) {
+        throw new HttpErrors.Unauthorized(`User not found.`);
+      }
+
       // don't copy over  token field 'iat' and 'exp', nor 'email' to user profile
       userProfile = Object.assign(
         {[securityId]: '', name: ''},
@@ -36,6 +44,7 @@ export class JWTService implements TokenService {
           [securityId]: decodedToken.id,
           name: decodedToken.name,
           id: decodedToken.id,
+          role: user.role,
         },
       );
     } catch (error) {
