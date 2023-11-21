@@ -1,5 +1,8 @@
 import {AuthenticationComponent} from '@loopback/authentication';
-import {AuthorizationComponent} from '@loopback/authorization';
+import {
+  AuthorizationComponent,
+  AuthorizationTags,
+} from '@loopback/authorization';
 import {BootMixin} from '@loopback/boot';
 import {ApplicationConfig} from '@loopback/core';
 import {RepositoryMixin} from '@loopback/repository';
@@ -25,9 +28,9 @@ export class LbTodoApplication extends BootMixin(
   constructor(options: ApplicationConfig = {}) {
     super(options);
 
-    this.bind(
-      'authorizationProviders.role-based-authorizer-provider',
-    ).toProvider(RoleBasedAuthorizer);
+    this.bind('authorizationProviders.role-based-authorizer')
+      .toProvider(RoleBasedAuthorizer)
+      .tag(AuthorizationTags.AUTHORIZER);
 
     // Set up the custom sequence
     this.sequence(MySequence);
