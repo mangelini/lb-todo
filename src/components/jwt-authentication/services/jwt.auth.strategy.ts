@@ -6,6 +6,7 @@ import {TokenServiceBindings} from '../keys';
 
 export class JWTAuthenticationStrategy implements AuthenticationStrategy {
   name = 'jwt';
+  userRepository: any;
 
   constructor(
     @inject(TokenServiceBindings.TOKEN_SERVICE)
@@ -14,7 +15,8 @@ export class JWTAuthenticationStrategy implements AuthenticationStrategy {
 
   async authenticate(request: Request): Promise<UserProfile | undefined> {
     const token: string = this.extractCredentials(request);
-    const userProfile: UserProfile = await this.tokenService.verifyToken(token);
+    const userProfile = await this.tokenService.verifyToken(token);
+
     return userProfile;
   }
 

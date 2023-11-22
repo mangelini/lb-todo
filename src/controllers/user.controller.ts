@@ -17,6 +17,7 @@ import {
   requestBody,
   response,
 } from '@loopback/rest';
+import {SecurityBindings, UserProfile} from '@loopback/security';
 import {
   Credentials,
   TokenServiceBindings,
@@ -140,23 +141,45 @@ export class UserController {
     return this.userRepository.findById(id, filter);
   }
 
-  @get('/users')
+  @get('/profile')
   @response(200, {
     description: 'Array of Users',
     content: {
       'application/json': {
         schema: {
           type: 'array',
-          items: getModelSchemaRef(User, {includeRelations: true}),
+          items: getModelSchemaRef(User, {
+            includeRelations: true,
+          }),
         },
       },
     },
   })
   @authenticate('jwt')
   @authorize({
-    allowedRoles: ['admin'],
+    allowedRoles: ['admin', 'user'],
   })
-  async getAll(): Promise<User[]> {
-    return this.userRepository.find();
+  async getAll(
+    @inject(SecurityBindings.USER)
+    currentUserProfile: UserProfile,
+  ): Promise<User[] | User> {
+    const currentUser = await this.userRepository.findOne({
+      where: {
+        username: currentUserProfile.name,
+      },
+      fields: {
+        password: false,
+      },
+    });
+
+    if (!currentUser) {
+      throw new Error('Current user not found');
+    }
+
+    if (currentUser.role.includes('admin')) {
+      return this.userRepository.find({fields: {password: false}});
+    }
+
+    return currentUser;
   }
 }
