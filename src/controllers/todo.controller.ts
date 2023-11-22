@@ -1,4 +1,6 @@
 import {authenticate} from '@loopback/authentication';
+import {authorize} from '@loopback/authorization';
+import {inject} from '@loopback/core';
 import {
   Count,
   CountSchema,
@@ -8,24 +10,25 @@ import {
   Where,
 } from '@loopback/repository';
 import {
-  del,
   get,
   getModelSchemaRef,
   param,
   patch,
   post,
-  put,
   requestBody,
   response,
 } from '@loopback/rest';
+import {SecurityBindings, UserProfile} from '@loopback/security';
 import {Todo} from '../models';
-import {TodoRepository} from '../repositories';
+import {TodoRepository, UserRepository} from '../repositories';
 
 @authenticate('jwt')
 export class TodoController {
   constructor(
     @repository(TodoRepository)
     public todoRepository: TodoRepository,
+    @repository(UserRepository)
+    public userRepository: UserRepository,
   ) {}
 
   @post('/todos')
@@ -54,8 +57,9 @@ export class TodoController {
     description: 'Todo model count',
     content: {'application/json': {schema: CountSchema}},
   })
-  async count(@param.where(Todo) where?: Where<Todo>): Promise<Count> {
-    return this.todoRepository.count(where);
+  @authorize({allowedRoles: ['admin']})
+  async count(): Promise<Count> {
+    return this.todoRepository.count();
   }
 
   @get('/todos')
@@ -70,14 +74,46 @@ export class TodoController {
       },
     },
   })
-  async find(@param.filter(Todo) filter?: Filter<Todo>): Promise<Todo[]> {
-    return this.todoRepository.find(filter);
+  async find(
+    @inject(SecurityBindings.USER)
+    currentUserProfile: UserProfile,
+    @param.filter(Todo) filter?: Filter<Todo>,
+  ): Promise<Todo[]> {
+    const currentUser = await this.userRepository.findOne({
+      where: {
+        username: currentUserProfile.name,
+      },
+      fields: {
+        password: false,
+      },
+    });
+
+    if (!currentUser) {
+      throw new Error('Current user not found');
+    }
+
+    if (currentUser.role.includes('admin')) {
+      return this.todoRepository.find(filter);
+    }
+
+    // If the user is not an admin, return only their todos
+    const userFilter: Filter<Todo> = {
+      ...filter,
+      where: {
+        ...filter?.where,
+        userId: currentUser.id,
+      },
+    };
+    return this.todoRepository.find(userFilter);
   }
 
   @patch('/todos')
   @response(200, {
     description: 'Todo PATCH success count',
     content: {'application/json': {schema: CountSchema}},
+  })
+  @authorize({
+    allowedRoles: ['admin'],
   })
   async updateAll(
     @requestBody({
@@ -103,9 +139,18 @@ export class TodoController {
     },
   })
   async findById(
+    @inject(SecurityBindings.USER)
+    currentUserProfile: UserProfile,
     @param.path.number('id') id: number,
     @param.filter(Todo, {exclude: 'where'}) filter?: FilterExcludingWhere<Todo>,
-  ): Promise<Todo> {
+  ): Promise<Todo | {statusCode: number; message: string}> {
+    const todoCreator = this.todoRepository.user;
+    if (todoCreator.name !== currentUserProfile.name) {
+      return {
+        statusCode: 403,
+        message: 'The authenticated user is not the creator of this todo',
+      };
+    }
     return this.todoRepository.findById(id, filter);
   }
 
@@ -114,6 +159,8 @@ export class TodoController {
     description: 'Todo PATCH success',
   })
   async updateById(
+    @inject(SecurityBindings.USER)
+    currentUserProfile: UserProfile,
     @param.path.number('id') id: number,
     @requestBody({
       content: {
@@ -123,26 +170,20 @@ export class TodoController {
       },
     })
     todo: Todo,
-  ): Promise<void> {
+  ): Promise<{statusCode: number; message: string}> {
+    const todoCreator = this.todoRepository.user;
+    if (todoCreator.name !== currentUserProfile.name) {
+      return {
+        statusCode: 403,
+        message: 'The authenticated user is not the creator of this todo',
+      };
+    }
+
     await this.todoRepository.updateById(id, todo);
-  }
 
-  @put('/todos/{id}')
-  @response(204, {
-    description: 'Todo PUT success',
-  })
-  async replaceById(
-    @param.path.number('id') id: number,
-    @requestBody() todo: Todo,
-  ): Promise<void> {
-    await this.todoRepository.replaceById(id, todo);
-  }
-
-  @del('/todos/{id}')
-  @response(204, {
-    description: 'Todo DELETE success',
-  })
-  async deleteById(@param.path.number('id') id: number): Promise<void> {
-    await this.todoRepository.deleteById(id);
+    return {
+      statusCode: 200,
+      message: 'Todo successfully updated',
+    };
   }
 }

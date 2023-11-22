@@ -26,7 +26,7 @@ export class User extends Entity {
     type: 'string',
     required: true,
     jsonSchema: {
-      enum: ['normal', 'admin'],
+      enum: ['user', 'admin'],
     },
   })
   role: string;
